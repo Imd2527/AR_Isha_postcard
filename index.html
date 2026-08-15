@@ -14,220 +14,87 @@
       overflow: hidden;
     }
 
-    #status {
+    #message {
       position: fixed;
-      z-index: 20;
+      z-index: 10;
       top: 20px;
       left: 50%;
       transform: translateX(-50%);
-      padding: 10px 18px;
-      border-radius: 20px;
-      background: rgba(0,0,0,0.65);
+      background: rgba(0,0,0,0.7);
       color: white;
+      padding: 12px 18px;
+      border-radius: 20px;
       font-family: sans-serif;
-      text-align: center;
-    }
-
-    #gifCanvas {
-      display: none;
     }
   </style>
-
-  <script>
-
-    /*
-     * This component keeps the AR canvas texture updated.
-     */
-    AFRAME.registerComponent('canvas-updater', {
-
-      init: function () {
-
-        this.canvas = document.querySelector('#gifCanvas');
-        this.ctx = this.canvas.getContext('2d');
-
-        this.gif = document.querySelector('#gif');
-
-        this.el.addEventListener('loaded', () => {
-
-          const mesh =
-            this.el.getObject3D('mesh');
-
-          if (!mesh) return;
-
-          mesh.material.transparent = true;
-          mesh.material.alphaTest = 0.01;
-
-          /*
-           * Create the canvas texture
-           */
-          this.texture =
-            new THREE.CanvasTexture(this.canvas);
-
-          this.texture.needsUpdate = true;
-
-          mesh.material.map = this.texture;
-
-          mesh.material.needsUpdate = true;
-
-        });
-
-      },
-
-      tick: function () {
-
-        if (!this.gif || !this.texture) return;
-
-        /*
-         * Draw whatever frame of the GIF
-         * is currently being displayed.
-         */
-        this.ctx.clearRect(
-          0,
-          0,
-          this.canvas.width,
-          this.canvas.height
-        );
-
-        this.ctx.drawImage(
-          this.gif,
-          0,
-          0,
-          this.canvas.width,
-          this.canvas.height
-        );
-
-        /*
-         * Tell Three.js that the canvas
-         * has changed.
-         */
-        this.texture.needsUpdate = true;
-
-      }
-
-    });
-
-  </script>
-
 </head>
-
 
 <body>
 
-  <div id="status">
-    Point your camera at the postcard
-  </div>
+<div id="message">
+  Point your camera at the postcard
+</div>
 
+<a-scene
+  mindar-image="imageTargetSrc: ./postcard.mind;"
+  color-space="sRGB"
+  renderer="colorManagement: true"
+  vr-mode-ui="enabled: false"
+  device-orientation-permission-ui="enabled: false">
 
-  <!--
-       The actual GIF.
-       The browser will animate this automatically.
-  -->
+  <a-assets>
 
-  <img
-    id="gif"
-    src="./animation.gif"
-    crossorigin="anonymous"
-  >
+    <img
+      id="animation"
+      src="./animation.GIF">
 
+  </a-assets>
 
-  <!--
-       Transparent canvas.
-       The current GIF frame is copied here.
-  -->
+  <a-camera
+    position="0 0 0"
+    look-controls="enabled: false">
+  </a-camera>
 
-  <canvas
-    id="gifCanvas"
-    width="600"
-    height="1000">
-  </canvas>
+  <a-entity
+    id="postcardTarget"
+    mindar-image-target="targetIndex: 0">
 
+    <a-plane
+      src="#animation"
+      position="0 0 0.05"
+      width="0.6"
+      height="1"
+      rotation="0 0 0"
+      material="shader: flat; transparent: true">
+    </a-plane>
 
-  <a-scene
-    mindar-image="imageTargetSrc: ./postcard.mind;"
-    color-space="sRGB"
-    renderer="colorManagement: true"
-    vr-mode-ui="enabled: false"
-    device-orientation-permission-ui="enabled: false"
-  >
+  </a-entity>
 
+</a-scene>
 
-    <a-camera
-      position="0 0 0"
-      look-controls="enabled: false">
-    </a-camera>
+<script>
 
+  const target =
+    document.querySelector("#postcardTarget");
 
-    <!-- POSTCARD IMAGE TARGET -->
+  const message =
+    document.querySelector("#message");
 
-    <a-entity
-      id="postcardTarget"
-      mindar-image-target="targetIndex: 0"
-    >
+  target.addEventListener("targetFound", () => {
 
-      <!--
-           Vertical AR animation.
-           Change width/height later if needed.
-      -->
+    message.innerHTML =
+      "✨ Postcard detected";
 
-      <a-plane
-        id="animationPlane"
-        position="0 0 0.05"
-        width="0.6"
-        height="1"
-        material="
-          shader: flat;
-          transparent: true;
-          alphaTest: 0.01;
-        "
-        canvas-updater
-      >
-      </a-plane>
+  });
 
-    </a-entity>
+  target.addEventListener("targetLost", () => {
 
+    message.innerHTML =
+      "Point your camera at the postcard";
 
-  </a-scene>
+  });
 
-
-  <script>
-
-    const target =
-      document.querySelector('#postcardTarget');
-
-    const status =
-      document.querySelector('#status');
-
-
-    /*
-     * When postcard is detected
-     */
-
-    target.addEventListener(
-      'targetFound',
-      function () {
-
-        status.innerHTML =
-          '✨ Your postcard is alive';
-
-      }
-    );
-
-
-    /*
-     * When postcard is lost
-     */
-
-    target.addEventListener(
-      'targetLost',
-      function () {
-
-        status.innerHTML =
-          'Point your camera at the postcard';
-
-      }
-    );
-
-  </script>
+</script>
 
 </body>
 </html>
