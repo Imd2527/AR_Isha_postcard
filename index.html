@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <title>AR Postcard</title>
+
+  <!-- A-Frame -->
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
+
+  <!-- MindAR -->
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+
+  <!-- GIF decoder -->
+  <script src="https://cdn.jsdelivr.net/npm/gifuct-js@2.1.2/dist/gifuct.min.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+    }
+
+    #loading {
+      position: fixed;
+      inset: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      color: white;
+      font-family: sans-serif;
+      background: #111;
+      padding: 30px;
+      box-sizing: border-box;
+    }
+
+    #loadingText {
+      max-width: 300px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="loading">
+    <div id="loadingText">
+      Loading AR...<br><br>
+      Point your camera at the postcard.
+    </div>
+  </div>
+
+  <a-scene
+    mindar-image="imageTargetSrc: ./postcard.mind;"
+    color-space="sRGB"
+    renderer="colorManagement: true, physicallyCorrectLights"
+    vr-mode-ui="enabled: false"
+    device-orientation-permission-ui="enabled: false"
+  >
+
+    <a-assets>
+      <canvas id="gifCanvas" width="500" height="800"></canvas>
+    </a-assets>
+
+    <a-camera
+      position="0 0 0"
+      look-controls="enabled: false">
+    </a-camera>
+
+    <a-entity
+      id="postcardTarget"
+      mindar-image-target="targetIndex: 0">
+
+      <a-plane
+        id="animationPlane"
+        position="0 0 0.01"
+        width="0.625"
+        height="1"
+        material="transparent: true; alphaTest: 0.01;"
+      >
+      </a-plane>
+
+    </a-entity>
+
+  </a-scene>
+
+  <script>
+
+    const canvas = document.getElementById("gifCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const plane = document.getElementById("animationPlane");
+    const target = document.getElementById("postcardTarget");
+
+    let frames = [];
+    let currentFrame = 0;
+    let animationTimer = null;
+    let gifReady = false;
+
+    /*
+      Load the GIF
+    */
+
+    fetch("./animation.gif")
+      .then(response => response.arrayBuffer())
+      .then(buffer => {
+
+        const gif = gifuct.parseGIF(buffer);
+
+        frames = gifuct.decompressFrames(gif, true);
+
+        if (frames.length === 0) {
+          throw new Error("No GIF frames found.");
+        }
+
+        /*
+          Use the GIF's actual dimensions
+        */
+
+        canvas.width = gif.lsd.width;
+        canvas.height = gif.lsd.height;
+
+        /*
+          Make the AR plane match the GIF proportions
+        */
+
+        const ratio = canvas.width / canvas.height;
+
+        const planeHeight = 1;
+        const planeWidth = planeHeight * ratio;
+
+        plane.setAttribute("width", planeWidth);
+        plane.setAttribute("height", planeHeight);
+
+        gifReady = true;
+
+        drawFrame();
+
+        document.getElementById("loadingText").innerHTML =
+          "Point your camera at the postcard.";
+      })
+      .catch(error => {
+
+        console.error(error);
+
+        document.getElementById("loadingText").innerHTML =
+          "Could not load the animation.";
+      });
+
+
+    /*
+      Draw the current GIF frame
+    */
+
+    function drawFrame() {
+
+      if (!gifReady || frames.length === 0) {
+        return;
+      }
+
+      const frame = frames[currentFrame];
+
+      ctx.clearRect(
+        0,
+        0,
+        canvas.width,
+        canvas.height
+      );
+
+      /*
+        Put the transparent GIF frame onto canvas
+      */
+
+      const imageData = new ImageData(
+        frame.patch,
+        frame.dims.width,
+        frame.dims.height
+      );
+
+      ctx.putImageData(
+        imageData,
+        frame.dims.left,
+        frame.dims.top
+      );
+
+      /*
+        Update the AR texture
+      */
+
+      const texture = new THREE.CanvasTexture(canvas);
+
+      texture.needsUpdate = true;
+
+      plane.setAttribute(
+        "material",
+        "src",
+        canvas
+      );
+
+      /*
+        Move to next frame
+      */
+
+      currentFrame++;
+
+      if (currentFrame >= frames.length) {
+        currentFrame = 0;
+      }
+
+      animationTimer = setTimeout(
+        drawFrame,
+        Math.max(frame.delay, 20)
+      );
+    }
+
+
+    /*
+      Start AR
+    */
+
+    target.addEventListener("targetFound", () => {
+
+      console.log("POSTCARD FOUND");
+
+      if (!gifReady) return;
+
+      if (!animationTimer) {
+        drawFrame();
+      }
+
+    });
+
+
+    /*
+      When postcard disappears
+    */
+
+    target.addEventListener("targetLost", () => {
+
+      console.log("POSTCARD LOST");
+
+    });
+
+
+    /*
+      Hide loading screen once AR starts
+    */
+
+    document.querySelector("a-scene").addEventListener(
+      "loaded",
+      () => {
+
+        setTimeout(() => {
+
+          document.getElementById("loading").style.display =
+            "none";
+
+        }, 1500);
+
+      }
+    );
+
+  </script>
+
+</body>
+</html>
