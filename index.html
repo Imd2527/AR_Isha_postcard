@@ -23,16 +23,29 @@ body {
   z-index: 20;
   top: 20px;
   left: 50%;
+
   transform: translateX(-50%);
 
   background: rgba(0,0,0,.7);
+
   color: white;
 
   padding: 12px 18px;
+
   border-radius: 20px;
 
   font-family: sans-serif;
+
   text-align: center;
+}
+
+
+/* =====================================
+   REMOVE A-FRAME VR BUTTON
+===================================== */
+
+.a-enter-vr {
+  display: none !important;
 }
 
 </style>
@@ -44,7 +57,7 @@ body {
 
 
 <div id="message">
-Loading animation...
+  Loading animation...
 </div>
 
 
@@ -54,7 +67,10 @@ Loading animation...
 
   color-space="sRGB"
 
-  renderer="colorManagement: true"
+  renderer="
+    colorManagement: true;
+    alpha: true;
+  "
 
   vr-mode-ui="enabled: false"
 
@@ -63,7 +79,7 @@ Loading animation...
 
 
 <!-- =====================================
-     LOAD THE PNG FRAMES
+     LOAD PNG FRAMES
 ===================================== -->
 
 <a-assets>
@@ -86,6 +102,10 @@ Loading animation...
 </a-assets>
 
 
+<!-- =====================================
+     CAMERA
+===================================== -->
+
 <a-camera
 
   position="0 0 0"
@@ -94,6 +114,10 @@ Loading animation...
 
 </a-camera>
 
+
+<!-- =====================================
+     POSTCARD TARGET
+===================================== -->
 
 <a-entity
 
@@ -104,7 +128,7 @@ Loading animation...
 
 
 <!-- =====================================
-     AR OVERLAY
+     ANIMATION OVERLAY
 ===================================== -->
 
 <a-plane
@@ -121,7 +145,8 @@ Loading animation...
     src: #frame1;
     shader: flat;
     transparent: true;
-    alphaTest: 0.01;
+    opacity: 1;
+    alphaTest: 0.5;
     side: double;
   "
 
@@ -146,10 +171,12 @@ const plane =
     "animationPlane"
   );
 
+
 const target =
   document.getElementById(
     "postcardTarget"
   );
+
 
 const message =
   document.getElementById(
@@ -165,7 +192,7 @@ let timer = null;
 
 
 /* =====================================
-   FRAME FILES
+   PNG FRAMES
 ===================================== */
 
 const frames = [
@@ -185,21 +212,25 @@ const frames = [
 
 /*
 
-13 FPS
+   Animation FPS = 13
 
-Frame 1 = 3 frames
-Frame 2 = 5 frames
-Frame 3 = 15 frames
+   Frame 1 = held for 3 frames
+   Frame 2 = held for 5 frames
+   Frame 3 = held for 15 frames
 
 */
 
+const frameDuration =
+  1000 / 13;
+
+
 const durations = [
 
-  3 * (1000 / 13),
+  3 * frameDuration,
 
-  5 * (1000 / 13),
+  5 * frameDuration,
 
-  15 * (1000 / 13)
+  15 * frameDuration
 
 ];
 
@@ -215,7 +246,11 @@ function showFrame(index) {
     "material",
 
     "src: " + frames[index] +
-    "; shader: flat; transparent: true; alphaTest: 0.01; side: double;"
+    "; shader: flat;" +
+    " transparent: true;" +
+    " opacity: 1;" +
+    " alphaTest: 0.5;" +
+    " side: double;"
 
   );
 
@@ -223,7 +258,7 @@ function showFrame(index) {
 
 
 /* =====================================
-   PLAY
+   PLAY ANIMATION
 ===================================== */
 
 function playAnimation() {
@@ -236,7 +271,7 @@ function playAnimation() {
 
 
   /*
-    Show current frame
+     Show current frame
   */
 
   showFrame(
@@ -245,8 +280,8 @@ function playAnimation() {
 
 
   /*
-    Hold it for the same
-    duration as Procreate
+     Hold frame for the
+     correct Procreate duration
   */
 
   timer = setTimeout(
@@ -257,11 +292,13 @@ function playAnimation() {
 
 
       /*
-        Loop
+         Loop back to
+         first frame
       */
 
       if (
-        currentFrame >= 3
+        currentFrame >=
+        frames.length
       ) {
 
         currentFrame = 0;
@@ -293,6 +330,12 @@ target.addEventListener(
     message.innerHTML =
       "✨ Your postcard is alive";
 
+
+    /*
+       Start animation
+       only if it isn't
+       already playing
+    */
 
     if (!playing) {
 
@@ -326,6 +369,10 @@ target.addEventListener(
     playing = false;
 
 
+    /*
+       Stop current timer
+    */
+
     if (timer) {
 
       clearTimeout(
@@ -342,7 +389,7 @@ target.addEventListener(
 
 
 /* =====================================
-   WAIT FOR ASSETS
+   WAIT FOR PNG ASSETS
 ===================================== */
 
 document
@@ -353,6 +400,14 @@ document
 
     function() {
 
+      /*
+         Show first frame
+         once assets are ready
+      */
+
+      showFrame(0);
+
+
       message.innerHTML =
         "Point your camera at the postcard";
 
@@ -362,6 +417,7 @@ document
 
 
 </script>
+
 
 </body>
 
