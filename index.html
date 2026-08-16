@@ -185,17 +185,9 @@ async function loadGIF() {
       await response.arrayBuffer();
 
 
-    /*
-      Parse GIF
-    */
-
     const gif =
       parseGIF(buffer);
 
-
-    /*
-      Extract EVERY frame
-    */
 
     frames =
       decompressFrames(
@@ -205,7 +197,7 @@ async function loadGIF() {
 
 
     console.log(
-      "Number of GIF frames:",
+      "GIF frames:",
       frames.length
     );
 
@@ -244,8 +236,20 @@ async function loadGIF() {
 
 
     /*
-      Create transparent texture
+      Transparent canvas
     */
+
+    ctx.clearRect(
+      0,
+      0,
+      canvas.width,
+      canvas.height
+    );
+
+
+    /* =================================
+       THREE TEXTURE
+    ================================= */
 
     texture =
       new THREE.CanvasTexture(
@@ -266,7 +270,7 @@ async function loadGIF() {
 
 
     /* =================================
-       WAIT FOR AR PLANE
+       WAIT FOR PLANE
     ================================= */
 
     const wait =
@@ -301,7 +305,7 @@ async function loadGIF() {
 
 
         /*
-          Correct vertical proportion
+          Keep animation vertical
         */
 
         const ratio =
@@ -324,10 +328,6 @@ async function loadGIF() {
         );
 
 
-        /*
-          Show first frame
-        */
-
         drawFrame();
 
 
@@ -343,6 +343,7 @@ async function loadGIF() {
   catch(error) {
 
     console.error(
+      "GIF ERROR:",
       error
     );
 
@@ -356,7 +357,7 @@ async function loadGIF() {
 
 
 /* =====================================
-   DRAW CURRENT FRAME
+   DRAW GIF FRAME
 ===================================== */
 
 function drawFrame() {
@@ -371,21 +372,14 @@ function drawFrame() {
 
 
   /*
-    Clear previous frame
+    IMPORTANT:
+    Do NOT clear the canvas here.
+
+    GIF frames can be partial.
+    We composite them onto the
+    existing frame.
   */
 
-  ctx.clearRect(
-    0,
-    0,
-    canvas.width,
-    canvas.height
-  );
-
-
-  /*
-    Put this GIF frame
-    onto transparent canvas
-  */
 
   const imageData =
     new ImageData(
@@ -411,8 +405,7 @@ function drawFrame() {
 
 
   /*
-    Tell Three.js
-    the image changed
+    Update AR texture
   */
 
   texture.needsUpdate =
@@ -420,7 +413,7 @@ function drawFrame() {
 
 
   /*
-    NEXT FRAME
+    Next frame
   */
 
   currentFrame++;
@@ -437,13 +430,13 @@ function drawFrame() {
 
 
   /*
-    GIF frame timing
+    GIF timing
   */
 
   const delay =
     Math.max(
       frame.delay || 100,
-      30
+      80
     );
 
 
@@ -477,6 +470,8 @@ target.addEventListener(
     if (!playing) {
 
       playing = true;
+
+      currentFrame = 0;
 
       drawFrame();
 
