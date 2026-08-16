@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html>
+
 <head>
 
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -40,6 +41,7 @@ body {
   font-family: sans-serif;
 
   text-align: center;
+
 }
 
 </style>
@@ -51,7 +53,7 @@ body {
 
 
 <div id="message">
-Loading animation...
+  Loading animation...
 </div>
 
 
@@ -70,13 +72,18 @@ Loading animation...
 
 
 <a-camera
+
   position="0 0 0"
+
   look-controls="enabled: false">
+
 </a-camera>
 
 
 <a-entity
+
   id="postcardTarget"
+
   mindar-image-target="targetIndex: 0"
 >
 
@@ -107,18 +114,7 @@ Loading animation...
 </a-scene>
 
 
-<script type="module">
-
-
-/* =====================================
-   GIF DECODER
-===================================== */
-
-import {
-  parseGIF,
-  decompressFrames
-}
-from "https://esm.sh/gifuct-js@2.1.2";
+<script>
 
 
 /* =====================================
@@ -130,10 +126,12 @@ const plane =
     "animationPlane"
   );
 
+
 const target =
   document.getElementById(
     "postcardTarget"
   );
+
 
 const message =
   document.getElementById(
@@ -147,20 +145,121 @@ let ctx;
 
 let texture;
 
-let frames = [];
-
-let currentFrame = 0;
-
 let playing = false;
 
 let timer = null;
 
+let currentFrame = 0;
+
 
 /* =====================================
-   LOAD GIF
+   PNG FILES
 ===================================== */
 
-async function loadGIF() {
+const frameFiles = [
+
+  "./frame%201.png",
+
+  "./frame%202.png",
+
+  "./frame%203.png"
+
+];
+
+
+/*
+  Exact timing from your
+  Procreate animation at 13 FPS.
+
+  Frame 1 = 3 frames
+  Frame 2 = 5 frames
+  Frame 3 = 15 frames
+*/
+
+const frameDurations = [
+
+  3 * (1000 / 13),
+
+  5 * (1000 / 13),
+
+  15 * (1000 / 13)
+
+];
+
+
+/* =====================================
+   IMAGE OBJECTS
+===================================== */
+
+const images = [];
+
+
+/* =====================================
+   LOAD ALL PNGs
+===================================== */
+
+function loadImages() {
+
+  return Promise.all(
+
+    frameFiles.map(
+
+      (file, index) => {
+
+        return new Promise(
+
+          (resolve, reject) => {
+
+            const img =
+              new Image();
+
+
+            img.onload =
+              function() {
+
+                console.log(
+                  "Loaded:",
+                  file
+                );
+
+                resolve(img);
+
+              };
+
+
+            img.onerror =
+              function() {
+
+                reject(
+                  new Error(
+                    "Could not load " +
+                    file
+                  )
+                );
+
+              };
+
+
+            img.src = file;
+
+          }
+
+        );
+
+      }
+
+    )
+
+  );
+
+}
+
+
+/* =====================================
+   START AR ANIMATION
+===================================== */
+
+async function setupAnimation() {
 
   try {
 
@@ -168,51 +267,26 @@ async function loadGIF() {
       "Loading animation...";
 
 
-    const response =
-      await fetch("./animation.GIF");
+    /*
+      Load all three PNGs
+    */
+
+    const loadedImages =
+      await loadImages();
 
 
-    if (!response.ok) {
-
-      throw new Error(
-        "GIF file could not be downloaded"
-      );
-
-    }
-
-
-    const buffer =
-      await response.arrayBuffer();
-
-
-    const gif =
-      parseGIF(buffer);
-
-
-    frames =
-      decompressFrames(
-        gif,
-        true
-      );
-
-
-    console.log(
-      "GIF frames:",
-      frames.length
+    images.push(
+      ...loadedImages
     );
 
 
-    if (!frames.length) {
-
-      throw new Error(
-        "No GIF frames found"
-      );
-
-    }
+    console.log(
+      "All PNG frames loaded"
+    );
 
 
     /* =================================
-       CANVAS
+       CREATE CANVAS
     ================================= */
 
     canvas =
@@ -221,12 +295,16 @@ async function loadGIF() {
       );
 
 
+    /*
+      Use the actual PNG dimensions.
+    */
+
     canvas.width =
-      gif.lsd.width;
+      images[0].naturalWidth;
 
 
     canvas.height =
-      gif.lsd.height;
+      images[0].naturalHeight;
 
 
     ctx =
@@ -236,19 +314,16 @@ async function loadGIF() {
 
 
     /*
-      Transparent canvas
+      Keep PNG quality as high as
+      possible when drawing to canvas.
     */
 
-    ctx.clearRect(
-      0,
-      0,
-      canvas.width,
-      canvas.height
-    );
+    ctx.imageSmoothingEnabled =
+      true;
 
 
     /* =================================
-       THREE TEXTURE
+       CREATE THREE TEXTURE
     ================================= */
 
     texture =
@@ -265,77 +340,113 @@ async function loadGIF() {
       THREE.LinearFilter;
 
 
+    texture.generateMipmaps =
+      false;
+
+
     texture.needsUpdate =
       true;
 
 
     /* =================================
-       WAIT FOR PLANE
+       WAIT FOR A-FRAME PLANE
     ================================= */
 
-    const wait =
-      setInterval(() => {
+    const waitForPlane =
+      setInterval(
 
-        const mesh =
-          plane.getObject3D(
-            "mesh"
+        function() {
+
+          const mesh =
+            plane.getObject3D(
+              "mesh"
+            );
+
+
+          if (!mesh) {
+
+            return;
+
+          }
+
+
+          clearInterval(
+            waitForPlane
           );
 
 
-        if (!mesh) return;
+          /*
+            Attach canvas texture
+          */
+
+          mesh.material.map =
+            texture;
 
 
-        clearInterval(wait);
+          mesh.material.transparent =
+            true;
 
 
-        mesh.material.map =
-          texture;
+          mesh.material.alphaTest =
+            0.01;
 
 
-        mesh.material.transparent =
-          true;
+          mesh.material.needsUpdate =
+            true;
 
 
-        mesh.material.alphaTest =
-          0.01;
+          /* =================================
+             MATCH PNG PROPORTION
+          ================================= */
+
+          const ratio =
+            images[0].naturalWidth /
+            images[0].naturalHeight;
 
 
-        mesh.material.needsUpdate =
-          true;
+          /*
+            Current AR height.
+            Increase/decrease this later
+            if you want the character bigger
+            or smaller.
+          */
+
+          const height =
+            1.6;
 
 
-        /*
-          Keep animation vertical
-        */
-
-        const ratio =
-          gif.lsd.width /
-          gif.lsd.height;
+          const width =
+            height * ratio;
 
 
-        const height = 1.6;
+          plane.setAttribute(
+            "height",
+            height
+          );
 
 
-        plane.setAttribute(
-          "height",
-          height
-        );
+          plane.setAttribute(
+            "width",
+            width
+          );
 
 
-        plane.setAttribute(
-          "width",
-          height * ratio
-        );
+          /*
+            Show first frame
+          */
+
+          showFrame(0);
 
 
-        drawFrame();
+          message.innerHTML =
+            "Point your camera at the postcard";
 
 
-        message.innerHTML =
-          "Point your camera at the postcard";
+        },
 
+        100
 
-      }, 100);
+      );
 
 
   }
@@ -343,183 +454,3 @@ async function loadGIF() {
   catch(error) {
 
     console.error(
-      "GIF ERROR:",
-      error
-    );
-
-
-    message.innerHTML =
-      "Could not load animation";
-
-  }
-
-}
-
-
-/* =====================================
-   DRAW GIF FRAME
-===================================== */
-
-function drawFrame() {
-
-  if (!frames.length) {
-    return;
-  }
-
-
-  const frame =
-    frames[currentFrame];
-
-
-  /*
-    IMPORTANT:
-    Do NOT clear the canvas here.
-
-    GIF frames can be partial.
-    We composite them onto the
-    existing frame.
-  */
-
-
-  const imageData =
-    new ImageData(
-
-      frame.patch,
-
-      frame.dims.width,
-
-      frame.dims.height
-
-    );
-
-
-  ctx.putImageData(
-
-    imageData,
-
-    frame.dims.left,
-
-    frame.dims.top
-
-  );
-
-
-  /*
-    Update AR texture
-  */
-
-  texture.needsUpdate =
-    true;
-
-
-  /*
-    Next frame
-  */
-
-  currentFrame++;
-
-
-  if (
-    currentFrame >=
-    frames.length
-  ) {
-
-    currentFrame = 0;
-
-  }
-
-
-  /*
-    GIF timing
-  */
-
-  const delay =
-    Math.max(
-      frame.delay || 100,
-      80
-    );
-
-
-  if (playing) {
-
-    timer =
-      setTimeout(
-        drawFrame,
-        delay
-      );
-
-  }
-
-}
-
-
-/* =====================================
-   POSTCARD FOUND
-===================================== */
-
-target.addEventListener(
-
-  "targetFound",
-
-  () => {
-
-    message.innerHTML =
-      "✨ Your postcard is alive";
-
-
-    if (!playing) {
-
-      playing = true;
-
-      currentFrame = 0;
-
-      drawFrame();
-
-    }
-
-  }
-
-);
-
-
-/* =====================================
-   POSTCARD LOST
-===================================== */
-
-target.addEventListener(
-
-  "targetLost",
-
-  () => {
-
-    message.innerHTML =
-      "Point your camera at the postcard";
-
-
-    playing = false;
-
-
-    if (timer) {
-
-      clearTimeout(timer);
-
-      timer = null;
-
-    }
-
-  }
-
-);
-
-
-/* =====================================
-   START
-===================================== */
-
-loadGIF();
-
-
-</script>
-
-</body>
-</html>
