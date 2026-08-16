@@ -1,278 +1,528 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <title>AR Isha Postcard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+<title>AR Isha Postcard</title>
 
-  <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-    }
+<script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 
-    #message {
-      position: fixed;
-      z-index: 20;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: rgba(0,0,0,.7);
-      color: white;
-      padding: 12px 18px;
-      border-radius: 20px;
-      font-family: sans-serif;
-      text-align: center;
-    }
+<script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
-    #gifSource {
-      position: absolute;
-      width: 1px;
-      height: 1px;
-      opacity: 0;
-      pointer-events: none;
-    }
-  </style>
+<style>
+
+body {
+  margin: 0;
+  overflow: hidden;
+}
+
+#message {
+
+  position: fixed;
+
+  z-index: 20;
+
+  top: 20px;
+
+  left: 50%;
+
+  transform: translateX(-50%);
+
+  background: rgba(0,0,0,.7);
+
+  color: white;
+
+  padding: 12px 18px;
+
+  border-radius: 20px;
+
+  font-family: sans-serif;
+
+  text-align: center;
+}
+
+</style>
+
 </head>
+
 
 <body>
 
-<div id="message">Starting AR...</div>
 
-<!-- Your actual animated GIF -->
-<img
-  id="gifSource"
-  src="./animation.GIF"
-  alt=""
->
-
-<!-- Canvas that becomes the AR texture -->
-<canvas id="arCanvas"></canvas>
+<div id="message">
+Loading animation...
+</div>
 
 
 <a-scene
-  id="scene"
+
   mindar-image="imageTargetSrc: ./postcard.mind;"
+
   color-space="sRGB"
+
   renderer="colorManagement: true"
+
   vr-mode-ui="enabled: false"
-  device-orientation-permission-ui="enabled: false">
 
-  <a-camera
-    position="0 0 0"
-    look-controls="enabled: false">
-  </a-camera>
+  device-orientation-permission-ui="enabled: false"
+>
 
-  <a-entity
-    id="postcardTarget"
-    mindar-image-target="targetIndex: 0">
 
-    <a-plane
-      id="animationPlane"
-      position="0 0 0.05"
-      width="0.8"
-      height="1.2"
-      material="
-        shader: flat;
-        transparent: true;
-        alphaTest: 0.01;
-        side: double;
-      ">
-    </a-plane>
+<a-camera
+  position="0 0 0"
+  look-controls="enabled: false">
+</a-camera>
 
-  </a-entity>
+
+<a-entity
+  id="postcardTarget"
+  mindar-image-target="targetIndex: 0"
+>
+
+
+<a-plane
+
+  id="animationPlane"
+
+  position="0 0 0.05"
+
+  width="0.8"
+
+  height="1.6"
+
+  material="
+    shader: flat;
+    transparent: true;
+    alphaTest: 0.01;
+    side: double;
+  "
+
+></a-plane>
+
+
+</a-entity>
+
 
 </a-scene>
 
 
-<script>
-
-const gif = document.getElementById("gifSource");
-const canvas = document.getElementById("arCanvas");
-const ctx = canvas.getContext("2d");
-
-const scene = document.getElementById("scene");
-const plane = document.getElementById("animationPlane");
-const target = document.getElementById("postcardTarget");
-const message = document.getElementById("message");
-
-let texture = null;
-let ready = false;
-let tracking = false;
+<script type="module">
 
 
-/* --------------------------------
-   GIF LOADED
--------------------------------- */
+/* =====================================
+   GIF DECODER
+===================================== */
 
-gif.onload = function () {
-
-  console.log("GIF loaded");
-
-  canvas.width = gif.naturalWidth;
-  canvas.height = gif.naturalHeight;
-
-  /*
-    Make the AR plane match the GIF's
-    actual vertical proportions.
-  */
-
-  const ratio =
-    gif.naturalWidth / gif.naturalHeight;
-
-  const height = 1.6;
-  const width = height * ratio;
-
-  plane.setAttribute("width", width);
-  plane.setAttribute("height", height);
-
-  ready = true;
-
-  message.innerHTML =
-    "Point your camera at the postcard";
-
-};
+import {
+  parseGIF,
+  decompressFrames
+}
+from "https://esm.sh/gifuct-js@2.1.2";
 
 
-/* --------------------------------
-   WAIT FOR A-FRAME
--------------------------------- */
+/* =====================================
+   VARIABLES
+===================================== */
 
-scene.addEventListener("loaded", function () {
+const plane =
+  document.getElementById(
+    "animationPlane"
+  );
 
-  console.log("A-Frame loaded");
+const target =
+  document.getElementById(
+    "postcardTarget"
+  );
 
-  /*
-    Wait until the plane's THREE mesh exists.
-  */
+const message =
+  document.getElementById(
+    "message"
+  );
 
-  const waitForMesh = setInterval(function () {
 
-    const mesh =
-      plane.getObject3D("mesh");
+let canvas;
 
-    if (!mesh) return;
+let ctx;
 
-    clearInterval(waitForMesh);
+let texture;
+
+let frames = [];
+
+let currentFrame = 0;
+
+let playing = false;
+
+let timer = null;
+
+
+/* =====================================
+   LOAD GIF
+===================================== */
+
+async function loadGIF() {
+
+  try {
+
+    message.innerHTML =
+      "Loading animation...";
+
+
+    const response =
+      await fetch("./animation.GIF");
+
+
+    if (!response.ok) {
+
+      throw new Error(
+        "GIF file could not be downloaded"
+      );
+
+    }
+
+
+    const buffer =
+      await response.arrayBuffer();
+
 
     /*
-      Create canvas texture
+      Parse GIF
+    */
+
+    const gif =
+      parseGIF(buffer);
+
+
+    /*
+      Extract EVERY frame
+    */
+
+    frames =
+      decompressFrames(
+        gif,
+        true
+      );
+
+
+    console.log(
+      "Number of GIF frames:",
+      frames.length
+    );
+
+
+    if (!frames.length) {
+
+      throw new Error(
+        "No GIF frames found"
+      );
+
+    }
+
+
+    /* =================================
+       CANVAS
+    ================================= */
+
+    canvas =
+      document.createElement(
+        "canvas"
+      );
+
+
+    canvas.width =
+      gif.lsd.width;
+
+
+    canvas.height =
+      gif.lsd.height;
+
+
+    ctx =
+      canvas.getContext(
+        "2d"
+      );
+
+
+    /*
+      Create transparent texture
     */
 
     texture =
-      new THREE.CanvasTexture(canvas);
+      new THREE.CanvasTexture(
+        canvas
+      );
+
 
     texture.minFilter =
       THREE.LinearFilter;
 
+
     texture.magFilter =
       THREE.LinearFilter;
 
-    texture.format =
-      THREE.RGBAFormat;
 
-    texture.needsUpdate = true;
-
-    /*
-      Put texture directly onto plane.
-    */
-
-    mesh.material.map = texture;
-
-    mesh.material.transparent = true;
-
-    mesh.material.alphaTest = 0.01;
-
-    mesh.material.needsUpdate = true;
-
-    console.log("Canvas texture connected");
-
-  }, 100);
-
-});
+    texture.needsUpdate =
+      true;
 
 
-/* --------------------------------
-   TARGET FOUND
--------------------------------- */
+    /* =================================
+       WAIT FOR AR PLANE
+    ================================= */
+
+    const wait =
+      setInterval(() => {
+
+        const mesh =
+          plane.getObject3D(
+            "mesh"
+          );
+
+
+        if (!mesh) return;
+
+
+        clearInterval(wait);
+
+
+        mesh.material.map =
+          texture;
+
+
+        mesh.material.transparent =
+          true;
+
+
+        mesh.material.alphaTest =
+          0.01;
+
+
+        mesh.material.needsUpdate =
+          true;
+
+
+        /*
+          Correct vertical proportion
+        */
+
+        const ratio =
+          gif.lsd.width /
+          gif.lsd.height;
+
+
+        const height = 1.6;
+
+
+        plane.setAttribute(
+          "height",
+          height
+        );
+
+
+        plane.setAttribute(
+          "width",
+          height * ratio
+        );
+
+
+        /*
+          Show first frame
+        */
+
+        drawFrame();
+
+
+        message.innerHTML =
+          "Point your camera at the postcard";
+
+
+      }, 100);
+
+
+  }
+
+  catch(error) {
+
+    console.error(
+      error
+    );
+
+
+    message.innerHTML =
+      "Could not load animation";
+
+  }
+
+}
+
+
+/* =====================================
+   DRAW CURRENT FRAME
+===================================== */
+
+function drawFrame() {
+
+  if (!frames.length) {
+    return;
+  }
+
+
+  const frame =
+    frames[currentFrame];
+
+
+  /*
+    Clear previous frame
+  */
+
+  ctx.clearRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+
+
+  /*
+    Put this GIF frame
+    onto transparent canvas
+  */
+
+  const imageData =
+    new ImageData(
+
+      frame.patch,
+
+      frame.dims.width,
+
+      frame.dims.height
+
+    );
+
+
+  ctx.putImageData(
+
+    imageData,
+
+    frame.dims.left,
+
+    frame.dims.top
+
+  );
+
+
+  /*
+    Tell Three.js
+    the image changed
+  */
+
+  texture.needsUpdate =
+    true;
+
+
+  /*
+    NEXT FRAME
+  */
+
+  currentFrame++;
+
+
+  if (
+    currentFrame >=
+    frames.length
+  ) {
+
+    currentFrame = 0;
+
+  }
+
+
+  /*
+    GIF frame timing
+  */
+
+  const delay =
+    Math.max(
+      frame.delay || 100,
+      30
+    );
+
+
+  if (playing) {
+
+    timer =
+      setTimeout(
+        drawFrame,
+        delay
+      );
+
+  }
+
+}
+
+
+/* =====================================
+   POSTCARD FOUND
+===================================== */
 
 target.addEventListener(
-  "targetFound",
-  function () {
 
-    tracking = true;
+  "targetFound",
+
+  () => {
 
     message.innerHTML =
       "✨ Your postcard is alive";
 
+
+    if (!playing) {
+
+      playing = true;
+
+      drawFrame();
+
+    }
+
   }
+
 );
 
 
-/* --------------------------------
-   TARGET LOST
--------------------------------- */
+/* =====================================
+   POSTCARD LOST
+===================================== */
 
 target.addEventListener(
-  "targetLost",
-  function () {
 
-    tracking = false;
+  "targetLost",
+
+  () => {
 
     message.innerHTML =
       "Point your camera at the postcard";
 
+
+    playing = false;
+
+
+    if (timer) {
+
+      clearTimeout(timer);
+
+      timer = null;
+
+    }
+
   }
+
 );
 
 
-/* --------------------------------
-   CONTINUOUSLY COPY GIF
-   INTO CANVAS
--------------------------------- */
+/* =====================================
+   START
+===================================== */
 
-function updateCanvas() {
+loadGIF();
 
-  if (
-    ready &&
-    texture
-  ) {
-
-    ctx.clearRect(
-      0,
-      0,
-      canvas.width,
-      canvas.height
-    );
-
-    /*
-      The browser itself is animating
-      animation.GIF.
-
-      We repeatedly capture whatever
-      frame it is currently displaying.
-    */
-
-    ctx.drawImage(
-      gif,
-      0,
-      0,
-      canvas.width,
-      canvas.height
-    );
-
-    texture.needsUpdate = true;
-
-  }
-
-  requestAnimationFrame(updateCanvas);
-
-}
-
-updateCanvas();
 
 </script>
 
